@@ -1,19 +1,10 @@
-import streamlit as st
 import pandas as pd
 import plotly.express as px
+import streamlit as st
 
-from utils.preprocessing import (
-    load_data,
-    add_rolling_features,
-    encode_categorical,
-    features
-)
-
-from utils.predict import (
-    predict_single,
-    predict_sequence,
-    ensemble_prediction
-)
+from utils.predict import ensemble_prediction, predict_sequence, predict_single
+from utils.preprocessing import (add_rolling_features, encode_categorical,
+                                 features, load_data, atm_locations)
 
 st.title("🏧 ATM Details & Prediction")
 
@@ -24,10 +15,18 @@ df = add_rolling_features(df)
 df, encoders = encode_categorical(df)
 
 # ATM selector
-atm = st.selectbox(
-    "Select ATM",
-    sorted(df["atm_id"].unique())
+# Convert to ATM_0001 format
+atm_locations["atm_id"] = atm_locations["atm_number"].apply(
+    lambda x: f"ATM_{x:04d}"
 )
+# Map name → ID
+atm_map = dict(zip(atm_locations["location"], atm_locations["atm_id"]))
+atm_name = st.selectbox(
+    "Select ATM",
+    sorted(atm_map.keys())
+)
+
+atm = atm_map[atm_name]
 
 atm_df = df[df["atm_id"] == atm].copy()
 
@@ -69,32 +68,16 @@ seq_data = seq_data.reshape(1, 30, len(features))
 
 lstm_pred, cnn_pred = predict_sequence(seq_data)
 
-final_pred = ensemble_prediction(
-    lr_pred,
-    rf_pred,
-    xgb_pred,
-    lstm_pred,
-    cnn_pred
-)
+final_pred = ensemble_prediction(lr_pred, rf_pred, xgb_pred, lstm_pred, cnn_pred)
 
 st.subheader("Model Predictions")
 
-pred_df = pd.DataFrame({
-    "Model": [
-        "Linear Regression",
-        "Random Forest",
-        "XGBoost",
-        "LSTM",
-        "CNN"
-    ],
-    "Prediction": [
-        lr_pred[0],
-        rf_pred[0],
-        xgb_pred[0],
-        lstm_pred[0],
-        cnn_pred[0]
-    ]
-})
+pred_df = pd.DataFrame(
+    {
+        "Model": ["Linear Regression", "Random Forest", "XGBoost", "CNN"],
+        "Prediction": [lr_pred[0], rf_pred[0], xgb_pred[0], cnn_pred[0]],
+    }
+)
 
 st.dataframe(pred_df)
 
@@ -128,10 +111,7 @@ history = atm_df.tail(30)
 history = history.loc[:, ~history.columns.duplicated()]
 
 fig = px.line(
-    history,
-    x="date",
-    y="cash_demand_next_day",
-    title="Last 30 Days Cash Demand"
+    history, x="date", y="cash_demand_next_day", title="Last 30 Days Cash Demand"
 )
 
 st.plotly_chart(fig, use_container_width=True)
