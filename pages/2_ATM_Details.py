@@ -38,8 +38,16 @@ st.subheader("ATM Information")
 
 col1, col2, col3 = st.columns(3)
 
-col1.metric("Location Type", latest["location_type"])
-col2.metric("Weather", latest["weather_condition"])
+location_text = encoders["location_type"].inverse_transform(
+    [int(latest["location_type"])]
+)[0]
+
+weather_text = encoders["weather_condition"].inverse_transform(
+    [int(latest["weather_condition"])]
+)[0]
+
+col1.metric("Location Type", location_text)
+col2.metric("Weather", weather_text)
 col3.metric("Nearby Competitors", int(latest["nearby_competitor_atms"]))
 
 col4, col5 = st.columns(2)
